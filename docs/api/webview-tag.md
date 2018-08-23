@@ -1,5 +1,15 @@
 # `<webview>` Tag
 
+## Warning
+
+Electron's `webview` tag is based on [Chromium's `webview`][chrome-webview], which
+is undergoing dramatic architectural changes. This impacts the stability of `webviews`,
+including rendering, navigation, and event routing. We currently recommend to not
+use the `webview` tag and to consider alternatives, like `iframe`, Electron's `BrowserView`,
+or an architecture that avoids embedded content altogether.
+
+## Overview
+
 > Display external web content in an isolated frame and process.
 
 Process: [Renderer](../glossary.md#renderer-process)
@@ -233,59 +243,6 @@ The full list of supported feature strings can be found in the
 A list of strings which specifies the blink features to be disabled separated by `,`.
 The full list of supported feature strings can be found in the
 [RuntimeEnabledFeatures.json5][runtime-enabled-features] file.
-
-### `guestinstance`
-
-```html
-<webview src="https://www.github.com/" guestinstance="3"></webview>
-```
-
-A value that links the webview to a specific webContents. When a webview
-first loads a new webContents is created and this attribute is set to its
-instance identifier. Setting this attribute on a new or existing webview
-connects it to the existing webContents that currently renders in a different
-webview.
-
-The existing webview will see the `destroy` event and will then create a new
-webContents when a new url is loaded.
-
-### `disableguestresize`
-
-```html
-<webview src="https://www.github.com/" disableguestresize></webview>
-```
-
-When this attribute is present the `webview` contents will be prevented from
-resizing when the `webview` element itself is resized.
-
-This can be used in combination with
-[`webContents.setSize`](web-contents.md#contentssetsizeoptions) to manually
-resize the webview contents in reaction to a window size change. This can
-make resizing faster compared to relying on the webview element bounds to
-automatically resize the contents.
-
-```javascript
-const {webContents} = require('electron')
-
-// We assume that `win` points to a `BrowserWindow` instance containing a
-// `<webview>` with `disableguestresize`.
-
-win.on('resize', () => {
-  const [width, height] = win.getContentSize()
-  for (let wc of webContents.getAllWebContents()) {
-    // Check if `wc` belongs to a webview in the `win` window.
-    if (wc.hostWebContents &&
-        wc.hostWebContents.id === win.webContents.id) {
-      wc.setSize({
-        normal: {
-          width: width,
-          height: height
-        }
-      })
-    }
-  }
-})
-```
 
 ## Methods
 
@@ -918,3 +875,4 @@ Emitted when DevTools is closed.
 Emitted when DevTools is focused / opened.
 
 [runtime-enabled-features]: https://cs.chromium.org/chromium/src/third_party/blink/renderer/platform/runtime_enabled_features.json5?l=70
+[chrome-webview]: https://developer.chrome.com/apps/tags/webview

@@ -12,8 +12,11 @@
 #include "atom/common/options_switches.h"
 #include "atom/renderer/api/atom_api_renderer_ipc.h"
 #include "atom/renderer/atom_render_frame_observer.h"
+#include "base/base_paths.h"
 #include "base/command_line.h"
 #include "base/files/file_path.h"
+#include "base/path_service.h"
+#include "base/process/process_handle.h"
 #include "chrome/renderer/printing/print_web_view_helper.h"
 #include "content/public/renderer/render_frame.h"
 #include "native_mate/dictionary.h"
@@ -81,31 +84,17 @@ base::CommandLine::StringVector GetArgv() {
   return base::CommandLine::ForCurrentProcess()->argv();
 }
 
+base::FilePath::StringType GetExecPath() {
+  base::FilePath path;
+  PathService::Get(base::FILE_EXE, &path);
+  return path.value();
+}
+
 v8::Local<v8::Value> CreatePreloadScript(v8::Isolate* isolate,
                                          v8::Local<v8::String> preloadSrc) {
   auto script = v8::Script::Compile(preloadSrc);
   auto func = script->Run();
   return func;
-}
-
-void InitializeBindings(v8::Local<v8::Object> binding,
-                        v8::Local<v8::Context> context) {
-  auto* isolate = context->GetIsolate();
-  mate::Dictionary b(isolate, binding);
-  b.SetMethod("get", GetBinding);
-  b.SetMethod("createPreloadScript", CreatePreloadScript);
-  b.SetMethod("crash", AtomBindings::Crash);
-  b.SetMethod("hang", AtomBindings::Hang);
-  b.SetMethod("getArgv", GetArgv);
-  b.SetMethod("getHeapStatistics", &AtomBindings::GetHeapStatistics);
-  b.SetMethod("getProcessMemoryInfo", &AtomBindings::GetProcessMemoryInfo);
-  b.SetMethod("getSystemMemoryInfo", &AtomBindings::GetSystemMemoryInfo);
-
-  // Pass in CLI flags needed to setup the renderer
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kGuestInstanceID))
-    b.Set(options::kGuestInstanceID,
-        command_line->GetSwitchValueASCII(switches::kGuestInstanceID));
 }
 
 class AtomSandboxedRenderFrameObserver : public AtomRenderFrameObserver {
@@ -143,9 +132,37 @@ class AtomSandboxedRenderFrameObserver : public AtomRenderFrameObserver {
 AtomSandboxedRendererClient::AtomSandboxedRendererClient() {
   // Explicitly register electron's builtin modules.
   NodeBindings::RegisterBuiltinModules();
+  metrics_ = base::ProcessMetrics::CreateCurrentProcessMetrics();
 }
 
 AtomSandboxedRendererClient::~AtomSandboxedRendererClient() {}
+
+void AtomSandboxedRendererClient::InitializeBindings(
+    v8::Local<v8::Object> binding,
+    v8::Local<v8::Context> context) {
+  auto* isolate = context->GetIsolate();
+  mate::Dictionary b(isolate, binding);
+  b.SetMethod("get", GetBinding);
+  b.SetMethod("createPreloadScript", CreatePreloadScript);
+  b.SetMethod("crash", AtomBindings::Crash);
+  b.SetMethod("hang", AtomBindings::Hang);
+  b.SetMethod("getArgv", GetArgv);
+  b.SetMethod("getExecPath", GetExecPath);
+  b.SetMethod("getPid", &base::GetCurrentProcId);
+  b.SetMethod("getResourcesPath", &NodeBindings::GetHelperResourcesPath);
+  b.SetMethod("getHeapStatistics", &AtomBindings::GetHeapStatistics);
+  b.SetMethod("getProcessMemoryInfo", &AtomBindings::GetProcessMemoryInfo);
+  b.SetMethod("getSystemMemoryInfo", &AtomBindings::GetSystemMemoryInfo);
+  b.SetMethod("getCPUUsage", base::Bind(&AtomBindings::GetCPUUsage,
+                                        base::Unretained(metrics_.get())));
+  b.SetMethod("getIOCounters", &AtomBindings::GetIOCounters);
+
+  // Pass in CLI flags needed to setup the renderer
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kGuestInstanceID))
+    b.Set(options::kGuestInstanceID,
+          command_line->GetSwitchValueASCII(switches::kGuestInstanceID));
+}
 
 void AtomSandboxedRendererClient::RenderFrameCreated(
     content::RenderFrame* render_frame) {
@@ -168,16 +185,12 @@ void AtomSandboxedRendererClient::DidCreateScriptContext(
   if (!render_frame->IsMainFrame() && !IsDevTools(render_frame))
     return;
 
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  base::FilePath preload_script_path =
-      command_line->GetSwitchValuePath(switches::kPreloadScript);
-
   auto* isolate = context->GetIsolate();
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(context);
   // Wrap the bundle into a function that receives the binding object and the
   // preload script path as arguments.
-  std::string left = "(function(binding, preloadPath, require) {\n";
+  std::string left = "(function(binding, require) {\n";
   std::string right = "\n})";
   // Compile the wrapper and run it to get the function object
   auto script = v8::Script::Compile(v8::String::Concat(
@@ -190,10 +203,10 @@ void AtomSandboxedRendererClient::DidCreateScriptContext(
   auto binding = v8::Object::New(isolate);
   InitializeBindings(binding, context);
   AddRenderBindings(isolate, binding);
-  v8::Local<v8::Value> args[] = {
-      binding, mate::ConvertToV8(isolate, preload_script_path.value())};
+  v8::Local<v8::Value> args[] = {binding};
   // Execute the function with proper arguments
-  ignore_result(func->Call(context, v8::Null(isolate), 2, args));
+  ignore_result(
+      func->Call(context, v8::Null(isolate), node::arraysize(args), args));
 }
 
 void AtomSandboxedRendererClient::WillReleaseScriptContext(

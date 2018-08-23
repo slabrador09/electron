@@ -2,9 +2,9 @@ vars = {
   'chromium_version':
     '66.0.3359.181',
   'libchromiumcontent_revision':
-    'a4c59c8494f22904cbd7f79051ecc42587aa11f6',
+    'c85470a1c379b1c4bedb372c146521bc4be9b75d',
   'node_version':
-    'v10.2.0-35-g4879332def',
+    'ece0a06ac8147efb5b5af431c21f312f1884616e',
 
   'chromium_git':
     'https://chromium.googlesource.com',
@@ -33,7 +33,9 @@ hooks = [
   {
     'action': [
       'python',
-      'src/libchromiumcontent/script/apply-patches'
+      'src/libchromiumcontent/script/apply-patches',
+      '--project-root=.',
+      '--commit'
     ],
     'pattern':
       'src/libchromiumcontent',

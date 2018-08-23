@@ -55,7 +55,7 @@ BrowserWindow::BrowserWindow(v8::Isolate* isolate,
     base::DictionaryValue web_preferences_dict;
     if (mate::ConvertFromV8(isolate, web_preferences.GetHandle(),
                             &web_preferences_dict)) {
-      existing_preferences->dict()->Clear();
+      existing_preferences->Clear();
       existing_preferences->Merge(web_preferences_dict);
     }
   } else {
@@ -311,9 +311,9 @@ void BrowserWindow::SetBrowserView(v8::Local<v8::Value> value) {
 #endif
 }
 
-void BrowserWindow::SetVibrancy(mate::Arguments* args) {
-  std::string type;
-  args->GetNext(&type);
+void BrowserWindow::SetVibrancy(v8::Isolate* isolate,
+                                v8::Local<v8::Value> value) {
+  std::string type = mate::V8ToString(value);
 
   auto* render_view_host = web_contents()->GetRenderViewHost();
   if (render_view_host) {
@@ -324,7 +324,7 @@ void BrowserWindow::SetVibrancy(mate::Arguments* args) {
       impl->SetBackgroundOpaque(type.empty() ? !window_->transparent() : false);
   }
 
-  TopLevelWindow::SetVibrancy(args);
+  TopLevelWindow::SetVibrancy(isolate, value);
 }
 
 void BrowserWindow::FocusOnWebView() {

@@ -5,6 +5,7 @@
 #include "atom/browser/api/atom_api_cookies.h"
 
 #include "atom/browser/atom_browser_context.h"
+#include "atom/browser/request_context_delegate.h"
 #include "atom/common/native_mate_converters/callback.h"
 #include "atom/common/native_mate_converters/gurl_converter.h"
 #include "atom/common/native_mate_converters/value_converter.h"
@@ -253,21 +254,23 @@ void SetCookieOnIO(scoped_refptr<net::URLRequestContextGetter> getter,
 Cookies::Cookies(v8::Isolate* isolate, AtomBrowserContext* browser_context)
     : browser_context_(browser_context) {
   Init(isolate);
-  auto subscription = browser_context->RegisterCookieChangeCallback(
-      base::Bind(&Cookies::OnCookieChanged, base::Unretained(this)));
-  browser_context->set_cookie_change_subscription(std::move(subscription));
+  cookie_change_subscription_ =
+      browser_context->GetRequestContextDelegate()
+          ->RegisterCookieChangeCallback(
+              base::Bind(&Cookies::OnCookieChanged, base::Unretained(this)));
 }
 
 Cookies::~Cookies() {}
 
 void Cookies::Get(const base::DictionaryValue& filter,
                   const GetCallback& callback) {
-  std::unique_ptr<base::DictionaryValue> copied(filter.CreateDeepCopy());
+  auto copy = base::DictionaryValue::From(
+      base::Value::ToUniquePtrValue(filter.Clone()));
   auto* getter = browser_context_->GetRequestContext();
   content::BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
-      base::BindOnce(GetCookiesOnIO, base::RetainedRef(getter),
-                     std::move(copied), callback));
+      base::BindOnce(GetCookiesOnIO, base::RetainedRef(getter), std::move(copy),
+                     callback));
 }
 
 void Cookies::Remove(const GURL& url,
@@ -282,12 +285,13 @@ void Cookies::Remove(const GURL& url,
 
 void Cookies::Set(const base::DictionaryValue& details,
                   const SetCallback& callback) {
-  std::unique_ptr<base::DictionaryValue> copied(details.CreateDeepCopy());
+  auto copy = base::DictionaryValue::From(
+      base::Value::ToUniquePtrValue(details.Clone()));
   auto* getter = browser_context_->GetRequestContext();
   content::BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
-      base::BindOnce(SetCookieOnIO, base::RetainedRef(getter),
-                     std::move(copied), callback));
+      base::BindOnce(SetCookieOnIO, base::RetainedRef(getter), std::move(copy),
+                     callback));
 }
 
 void Cookies::FlushStore(const base::Closure& callback) {

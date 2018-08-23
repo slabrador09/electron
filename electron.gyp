@@ -4,7 +4,7 @@
     'product_name%': 'Electron',
     'company_name%': 'GitHub, Inc',
     'company_abbr%': 'github',
-    'version%': '0.0.0-dev',
+    'version%': '4.0.0-nightly.20180821',
     'js2c_input_dir': '<(SHARED_INTERMEDIATE_DIR)/js2c',
   },
   'includes': [
@@ -356,6 +356,16 @@
           'link_settings': {
             'libraries': [ '<@(libchromiumcontent_v8_libraries)' ],
           },
+          'sources': [
+            '<@(lib_sources_location_provider)',
+          ],
+          'defines': [
+            # Enable fake location provider to mock geolocation
+            # responses in component build. Should not be enabled
+            # for release build. If you need to test with chromium's
+            # location provider, remove this definition.
+            'OVERRIDE_LOCATION_PROVIDER',
+          ],
         }],
         ['OS=="win"', {
           'sources': [

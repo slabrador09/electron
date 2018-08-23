@@ -8,14 +8,12 @@
 #include <vector>
 
 #include "atom/common/color_util.h"
-#include "atom/common/context_counter.h"
 #include "atom/common/native_mate_converters/value_converter.h"
 #include "atom/common/options_switches.h"
 #include "atom/renderer/atom_autofill_agent.h"
 #include "atom/renderer/atom_render_frame_observer.h"
 #include "atom/renderer/atom_render_view_observer.h"
 #include "atom/renderer/content_settings_observer.h"
-#include "atom/renderer/guest_view_container.h"
 #include "atom/renderer/preferences_manager.h"
 #include "base/command_line.h"
 #include "base/process/process_handle.h"
@@ -25,6 +23,7 @@
 #include "chrome/renderer/printing/print_web_view_helper.h"
 #include "chrome/renderer/tts_dispatcher.h"
 #include "content/public/common/content_constants.h"
+#include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_view.h"
 #include "native_mate/dictionary.h"
 #include "third_party/WebKit/Source/platform/weborigin/SchemeRegistry.h"
@@ -36,7 +35,6 @@
 #include "third_party/WebKit/public/web/WebSecurityPolicy.h"
 
 #if defined(OS_MACOSX)
-#include "base/mac/mac_util.h"
 #include "base/strings/sys_string_conversions.h"
 #endif
 
@@ -97,9 +95,9 @@ RendererClientBase::~RendererClientBase() {}
 void RendererClientBase::DidCreateScriptContext(
     v8::Handle<v8::Context> context,
     content::RenderFrame* render_frame) {
-  // global.setHidden("contextId", `${processId}-${GetNextContextId()}`)
+  // global.setHidden("contextId", `${processId}-${++next_context_id_}`)
   std::string context_id = base::StringPrintf(
-      "%" CrPRIdPid "-%d", base::GetCurrentProcId(), GetNextContextId());
+      "%" CrPRIdPid "-%d", base::GetCurrentProcId(), ++next_context_id_);
   v8::Isolate* isolate = context->GetIsolate();
   v8::Local<v8::String> key = mate::StringToSymbol(isolate, "contextId");
   v8::Local<v8::Private> private_key = v8::Private::ForApi(isolate, key);
@@ -158,15 +156,6 @@ void RendererClientBase::RenderThreadStarted() {
   if (!app_id.empty()) {
     SetCurrentProcessExplicitAppUserModelID(app_id.c_str());
   }
-#endif
-
-#if defined(OS_MACOSX)
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  bool scroll_bounce = command_line->HasSwitch(switches::kScrollBounce);
-  CFPreferencesSetAppValue(CFSTR("NSScrollViewRubberbanding"),
-                           scroll_bounce ? kCFBooleanTrue : kCFBooleanFalse,
-                           kCFPreferencesCurrentApplication);
-  CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
 #endif
 }
 
@@ -233,17 +222,6 @@ bool RendererClientBase::OverrideCreatePlugin(
 
   *plugin = nullptr;
   return true;
-}
-
-content::BrowserPluginDelegate* RendererClientBase::CreateBrowserPluginDelegate(
-    content::RenderFrame* render_frame,
-    const std::string& mime_type,
-    const GURL& original_url) {
-  if (mime_type == content::kBrowserPluginMimeType) {
-    return new GuestViewContainer(render_frame);
-  } else {
-    return nullptr;
-  }
 }
 
 void RendererClientBase::AddSupportedKeySystems(

@@ -42,7 +42,6 @@ class ResourceRequestBody;
 
 namespace atom {
 
-struct SetSizeParams;
 class AtomBrowserContext;
 class AtomJavaScriptDialogManager;
 class WebContentsZoomController;
@@ -98,12 +97,9 @@ class WebContents : public mate::TrackableObject<WebContents>,
   static void BuildPrototype(v8::Isolate* isolate,
                              v8::Local<v8::FunctionTemplate> prototype);
 
-  static int64_t GetIDForContents(content::WebContents* web_contents);
-
   // Notifies to destroy any guest web contents before destroying self.
   void DestroyWebContents(bool async);
 
-  int64_t GetID() const;
   int GetProcessID() const;
   base::ProcessId GetOSProcessID() const;
   Type GetType() const;
@@ -200,8 +196,9 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void CapturePage(mate::Arguments* args);
 
   // Methods for creating <webview>.
-  void SetSize(const SetSizeParams& params);
   bool IsGuest() const;
+  void AttachToIframe(content::WebContents* embedder_web_contents,
+                      int embedder_frame_id);
 
   // Methods for offscreen rendering
   bool IsOffScreen() const;
@@ -216,9 +213,9 @@ class WebContents : public mate::TrackableObject<WebContents>,
 
   // Methods for zoom handling.
   void SetZoomLevel(double level);
-  double GetZoomLevel();
+  double GetZoomLevel() const;
   void SetZoomFactor(double factor);
-  double GetZoomFactor();
+  double GetZoomFactor() const;
 
   // Callback triggered on permission response.
   void OnEnterFullscreenModeForTab(content::WebContents* source,
@@ -233,12 +230,15 @@ class WebContents : public mate::TrackableObject<WebContents>,
                       const std::vector<std::string>& features,
                       const scoped_refptr<network::ResourceRequestBody>& body);
 
+  // Returns the preload script path of current WebContents.
+  v8::Local<v8::Value> GetPreloadPath(v8::Isolate* isolate) const;
+
   // Returns the web preferences of current WebContents.
-  v8::Local<v8::Value> GetWebPreferences(v8::Isolate* isolate);
-  v8::Local<v8::Value> GetLastWebPreferences(v8::Isolate* isolate);
+  v8::Local<v8::Value> GetWebPreferences(v8::Isolate* isolate) const;
+  v8::Local<v8::Value> GetLastWebPreferences(v8::Isolate* isolate) const;
 
   // Returns the owner window.
-  v8::Local<v8::Value> GetOwnerBrowserWindow();
+  v8::Local<v8::Value> GetOwnerBrowserWindow() const;
 
   // Grants the child process the capability to access URLs with the origin of
   // the specified URL.
@@ -340,8 +340,6 @@ class WebContents : public mate::TrackableObject<WebContents>,
       const content::BluetoothChooser::EventHandler& handler) override;
   content::JavaScriptDialogManager* GetJavaScriptDialogManager(
       content::WebContents* source) override;
-  void ResizeDueToAutoResize(content::WebContents* web_contents,
-                             const gfx::Size& new_size) override;
 
   // content::WebContentsObserver:
   void BeforeUnloadFired(const base::TimeTicks& proceed_time) override;

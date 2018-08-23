@@ -17,7 +17,6 @@
 #include "atom/browser/atom_resource_dispatcher_host_delegate.h"
 #include "atom/browser/atom_speech_recognition_manager_delegate.h"
 #include "atom/browser/child_web_contents_tracker.h"
-#include "atom/browser/login_handler.h"
 #include "atom/browser/native_window.h"
 #include "atom/browser/session_preferences.h"
 #include "atom/browser/web_contents_permission_helper.h"
@@ -45,6 +44,7 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/web_preferences.h"
+#include "device/geolocation/public/cpp/location_provider.h"
 #include "net/ssl/ssl_cert_request_info.h"
 #include "ppapi/host/ppapi_host.h"
 #include "services/network/public/cpp/resource_request_body.h"
@@ -64,6 +64,10 @@
 #if defined(ENABLE_PEPPER_FLASH)
 #include "chrome/browser/renderer_host/pepper/chrome_browser_pepper_host_factory.h"
 #endif  // defined(ENABLE_PEPPER_FLASH)
+
+#if defined(OVERRIDE_LOCATION_PROVIDER)
+#include "atom/browser/fake_location_provider.h"
+#endif  // defined(OVERRIDE_LOCATION_PROVIDER)
 
 using content::BrowserThread;
 
@@ -252,11 +256,11 @@ void AtomBrowserClient::OverrideSiteInstanceForNavigation(
     return;
 
   // Do we have an affinity site to manage ?
-  std::string affinity;
   auto* web_contents = content::WebContents::FromRenderFrameHost(rfh);
   auto* web_preferences = WebContentsPreferences::From(web_contents);
+  std::string affinity;
   if (web_preferences &&
-      web_preferences->dict()->GetString("affinity", &affinity) &&
+      web_preferences->GetPreference("affinity", &affinity) &&
       !affinity.empty()) {
     affinity = base::ToLowerASCII(affinity);
     auto iter = site_per_affinities.find(affinity);
@@ -344,10 +348,6 @@ void AtomBrowserClient::AppendExtraCommandLineSwitches(
       web_preferences->AppendCommandLineSwitches(command_line);
     SessionPreferences::AppendExtraCommandLineSwitches(
         web_contents->GetBrowserContext(), command_line);
-
-    auto context_id = atom::api::WebContents::GetIDForContents(web_contents);
-    command_line->AppendSwitchASCII(switches::kContextId,
-                                    base::IntToString(context_id));
   }
 }
 
@@ -500,17 +500,13 @@ std::unique_ptr<net::ClientCertStore> AtomBrowserClient::CreateClientCertStore(
 #endif
 }
 
-content::ResourceDispatcherHostLoginDelegate*
-AtomBrowserClient::CreateLoginDelegate(
-    net::AuthChallengeInfo* auth_info,
-    content::ResourceRequestInfo::WebContentsGetter web_contents_getter,
-    bool is_main_frame,
-    const GURL& url,
-    bool first_auth_attempt,
-    const base::Callback<void(const base::Optional<net::AuthCredentials>&)>&
-        auth_required_callback) {
-  return new LoginHandler(auth_info, web_contents_getter, url,
-                          auth_required_callback);
+std::unique_ptr<device::LocationProvider>
+AtomBrowserClient::OverrideSystemLocationProvider() {
+#if defined(OVERRIDE_LOCATION_PROVIDER)
+  return std::make_unique<FakeLocationProvider>();
+#else
+  return nullptr;
+#endif
 }
 
 brightray::BrowserMainParts* AtomBrowserClient::OverrideCreateBrowserMainParts(

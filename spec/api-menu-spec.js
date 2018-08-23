@@ -42,6 +42,23 @@ describe('Menu module', () => {
       }).to.not.throw()
     })
 
+    it('does throw exceptions for empty objects and null values', () => {
+      expect(() => {
+        Menu.buildFromTemplate([{}, null])
+      }).to.throw(/Invalid template for MenuItem: must have at least one of label, role or type/)
+    })
+
+    it('does throw exception for object without role, label, or type attribute', () => {
+      expect(() => {
+        Menu.buildFromTemplate([{ 'visible': true }])
+      }).to.throw(/Invalid template for MenuItem: must have at least one of label, role or type/)
+    })
+    it('does throw exception for undefined', () => {
+      expect(() => {
+        Menu.buildFromTemplate([undefined])
+      }).to.throw(/Invalid template for MenuItem: must have at least one of label, role or type/)
+    })
+
     describe('Menu sorting and building', () => {
       describe('sorts groups', () => {
         it('does a simple sort', () => {
@@ -633,8 +650,14 @@ describe('Menu module', () => {
 
     it('throws an error if options is not an object', () => {
       expect(() => {
-        menu.popup()
+        menu.popup('this is a string, not an object')
       }).to.throw(/Options must be an object/)
+    })
+
+    it('allows for options to be optional', () => {
+      expect(() => {
+        menu.popup({})
+      }).to.not.throw()
     })
 
     it('should emit menu-will-show event', (done) => {

@@ -188,13 +188,9 @@ const char kAppUserModelId[] = "app-user-model-id";
 // The application path
 const char kAppPath[] = "app-path";
 
-// The context ID for this process
-const char kContextId[] = "context-id";
-
 // The command line switch versions of the options.
 const char kBackgroundColor[] = "background-color";
 const char kPreloadScript[] = "preload";
-const char kPreloadURL[] = "preload-url";
 const char kPreloadScripts[] = "preload-scripts";
 const char kNodeIntegration[] = "node-integration";
 const char kContextIsolation[] = "context-isolation";
@@ -213,6 +209,12 @@ const char kNodeIntegrationInWorker[] = "node-integration-in-worker";
 const char kWidevineCdmPath[] = "widevine-cdm-path";
 // Widevine CDM version.
 const char kWidevineCdmVersion[] = "widevine-cdm-version";
+
+// Forces the maximum disk space to be used by the disk cache, in bytes.
+const char kDiskCacheSize[] = "disk-cache-size";
+
+// Ignore the limit of 6 connections per host.
+const char kIgnoreConnectionsLimit[] = "ignore-connections-limit";
 
 }  // namespace switches
 

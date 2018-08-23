@@ -14,6 +14,7 @@
 #include "atom/common/native_mate_converters/string16_converter.h"
 #include "atom/common/node_includes.h"
 #include "base/logging.h"
+#include "base/process/process_info.h"
 #include "base/process/process_metrics_iocounters.h"
 #include "base/sys_info.h"
 #include "native_mate/dictionary.h"
@@ -55,9 +56,10 @@ void AtomBindings::BindTo(v8::Isolate* isolate, v8::Local<v8::Object> process) {
   dict.SetMethod("log", &Log);
   dict.SetMethod("getHeapStatistics", &GetHeapStatistics);
   dict.SetMethod("getProcessMemoryInfo", &GetProcessMemoryInfo);
+  dict.SetMethod("getCreationTime", &GetCreationTime);
   dict.SetMethod("getSystemMemoryInfo", &GetSystemMemoryInfo);
   dict.SetMethod("getCPUUsage", base::Bind(&AtomBindings::GetCPUUsage,
-                                           base::Unretained(this)));
+                                           base::Unretained(metrics_.get())));
   dict.SetMethod("getIOCounters", &GetIOCounters);
 #if defined(OS_POSIX)
   dict.SetMethod("setFdLimit", &base::SetFdLimit);
@@ -133,6 +135,7 @@ v8::Local<v8::Value> AtomBindings::GetHeapStatistics(v8::Isolate* isolate) {
   isolate->GetHeapStatistics(&v8_heap_stats);
 
   mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.SetHidden("simple", true);
   dict.Set("totalHeapSize",
            static_cast<double>(v8_heap_stats.total_heap_size() >> 10));
   dict.Set(
@@ -161,6 +164,7 @@ v8::Local<v8::Value> AtomBindings::GetProcessMemoryInfo(v8::Isolate* isolate) {
   auto metrics = base::ProcessMetrics::CreateCurrentProcessMetrics();
 
   mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.SetHidden("simple", true);
   dict.Set("workingSetSize",
            static_cast<double>(metrics->GetWorkingSetSize() >> 10));
   dict.Set("peakWorkingSetSize",
@@ -176,6 +180,16 @@ v8::Local<v8::Value> AtomBindings::GetProcessMemoryInfo(v8::Isolate* isolate) {
 }
 
 // static
+v8::Local<v8::Value> AtomBindings::GetCreationTime(v8::Isolate* isolate) {
+  auto timeValue = base::CurrentProcessInfo::CreationTime();
+  if (timeValue.is_null()) {
+    return v8::Null(isolate);
+  }
+  double jsTime = timeValue.ToJsTime();
+  return v8::Number::New(isolate, jsTime);
+}
+
+// static
 v8::Local<v8::Value> AtomBindings::GetSystemMemoryInfo(v8::Isolate* isolate,
                                                        mate::Arguments* args) {
   base::SystemMemoryInfoKB mem_info;
@@ -185,6 +199,7 @@ v8::Local<v8::Value> AtomBindings::GetSystemMemoryInfo(v8::Isolate* isolate,
   }
 
   mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.SetHidden("simple", true);
   dict.Set("total", mem_info.total);
 
   // See Chromium's "base/process/process_metrics.h" for an explanation.
@@ -205,16 +220,19 @@ v8::Local<v8::Value> AtomBindings::GetSystemMemoryInfo(v8::Isolate* isolate,
   return dict.GetHandle();
 }
 
-v8::Local<v8::Value> AtomBindings::GetCPUUsage(v8::Isolate* isolate) {
+// static
+v8::Local<v8::Value> AtomBindings::GetCPUUsage(base::ProcessMetrics* metrics,
+                                               v8::Isolate* isolate) {
   mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.SetHidden("simple", true);
   int processor_count = base::SysInfo::NumberOfProcessors();
   dict.Set("percentCPUUsage",
-           metrics_->GetPlatformIndependentCPUUsage() / processor_count);
+           metrics->GetPlatformIndependentCPUUsage() / processor_count);
 
   // NB: This will throw NOTIMPLEMENTED() on Windows
   // For backwards compatibility, we'll return 0
 #if !defined(OS_WIN)
-  dict.Set("idleWakeupsPerSecond", metrics_->GetIdleWakeupsPerSecond());
+  dict.Set("idleWakeupsPerSecond", metrics->GetIdleWakeupsPerSecond());
 #else
   dict.Set("idleWakeupsPerSecond", 0);
 #endif
@@ -227,6 +245,7 @@ v8::Local<v8::Value> AtomBindings::GetIOCounters(v8::Isolate* isolate) {
   auto metrics = base::ProcessMetrics::CreateCurrentProcessMetrics();
   base::IoCounters io_counters;
   mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+  dict.SetHidden("simple", true);
 
   if (metrics->GetIOCounters(&io_counters)) {
     dict.Set("readOperationCount", io_counters.ReadOperationCount);
