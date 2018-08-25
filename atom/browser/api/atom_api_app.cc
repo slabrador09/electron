@@ -548,6 +548,9 @@ App::App(v8::Isolate* isolate) {
   static_cast<AtomBrowserClient*>(AtomBrowserClient::Get())->set_delegate(this);
   Browser::Get()->AddObserver(this);
   content::GpuDataManager::GetInstance()->AddObserver(this);
+  std::string gpu_blocked_reason;
+  content::GpuDataManager::GetInstance()->GpuAccessAllowed(&gpu_blocked_reason);
+  LOG(ERROR) << gpu_blocked_reason;
   base::ProcessId pid = base::GetCurrentProcId();
   auto process_metric = std::make_unique<atom::ProcessMetric>(
       content::PROCESS_TYPE_BROWSER, pid,
